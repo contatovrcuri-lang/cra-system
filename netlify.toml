@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# As variáveis sensíveis (DATABASE_URL, JWT_SECRET, chaves Supabase) NÃO
+# devem ser commitadas aqui. Configure-as em:
+# Netlify > Site settings > Environment variables
