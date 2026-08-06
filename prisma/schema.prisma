@@ -46,6 +46,12 @@ enum NotificationType {
   PROTOCOLO_ATRASADO
 }
 
+enum ResolutionChannel {
+  CONTATO_ATIVO
+  WHATSAPP
+  EMAIL
+}
+
 model User {
   id             String   @id @default(cuid())
   username       String   @unique // padrão fictício X00XXXX
@@ -76,6 +82,7 @@ model Protocol {
   priority      Priority       @default(MEDIA)
   status        ProtocolStatus @default(NOVO)
   notes         String?
+  resolutionChannel ResolutionChannel? // meio de contato usado para dar a resolutiva final ao cooperado
 
   responsibleId String?
   responsible   User?    @relation("Responsavel", fields: [responsibleId], references: [id])

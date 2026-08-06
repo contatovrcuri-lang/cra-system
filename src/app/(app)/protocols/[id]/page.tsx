@@ -18,8 +18,11 @@ import {
 import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
 import { Avatar, Card, Skeleton } from "@/components/ui/primitives";
 import { formatDate, formatDateTime, formatProtocolNumber } from "@/lib/utils";
-import { STATUS_LABEL, PRIORITY_LABEL } from "@/lib/labels";
+import { STATUS_LABEL, PRIORITY_LABEL, RESOLUTION_CHANNEL_LABEL } from "@/lib/labels";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { ConcludeProtocolDialog } from "@/components/protocols/conclude-protocol-dialog";
+
+type UserOption = { id: string; name: string; username: string };
 
 type ProtocolDetail = {
   id: string;
@@ -30,6 +33,7 @@ type ProtocolDetail = {
   priority: string;
   status: string;
   notes: string | null;
+  resolutionChannel: string | null;
   dueDate: string;
   createdAt: string;
   completedAt: string | null;
@@ -57,6 +61,18 @@ export default function ProtocolDetailPage() {
   const qc = useQueryClient();
   const { user } = useCurrentUser();
   const [comment, setComment] = useState("");
+  const [pendingConclude, setPendingConclude] = useState(false);
+
+  const isAdminForOptions = user?.role === "ADMIN";
+  const { data: usersData } = useQuery<{ users: UserOption[] }>({
+    queryKey: ["users-options"],
+    enabled: isAdminForOptions,
+    queryFn: async () => {
+      const res = await fetch("/api/users");
+      if (!res.ok) throw new Error("Falha ao carregar usuários");
+      return res.json();
+    },
+  });
 
   const { data, isLoading } = useQuery<{ protocol: ProtocolDetail }>({
     queryKey: ["protocol", id],
@@ -192,6 +208,13 @@ export default function ProtocolDetailPage() {
                 {p.notes}
               </div>
             )}
+
+            {p.resolutionChannel && (
+              <div className="mt-4 rounded-xl bg-green-50 p-3 text-sm dark:bg-green-950/20">
+                <p className="mb-1 text-xs font-medium text-muted">Finalizado por</p>
+                {RESOLUTION_CHANNEL_LABEL[p.resolutionChannel]}
+              </div>
+            )}
           </Card>
 
           {/* Controles de andamento */}
@@ -201,8 +224,16 @@ export default function ProtocolDetailPage() {
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted">Status</label>
                 <select
-                  defaultValue={p.status}
-                  onChange={(e) => updateMutation.mutate({ status: e.target.value })}
+                  key={`${p.status}-${pendingConclude}`}
+                  defaultValue={pendingConclude ? p.status : p.status}
+                  onChange={(e) => {
+                    const newStatus = e.target.value;
+                    if (newStatus === "CONCLUIDO" && p.status !== "CONCLUIDO") {
+                      setPendingConclude(true);
+                      return;
+                    }
+                    updateMutation.mutate({ status: newStatus });
+                  }}
                   className="focus-ring w-full rounded-xl border border-cream-200 bg-white px-3 py-2 text-sm dark:border-charcoal-700 dark:bg-charcoal-900"
                 >
                   {Object.entries(STATUS_LABEL).map(([k, v]) => (
@@ -289,6 +320,28 @@ export default function ProtocolDetailPage() {
             ) : (
               <p className="text-sm text-muted">Não atribuído</p>
             )}
+
+            {isAdmin && (
+              <div className="mt-3 border-t border-cream-200 pt-3 dark:border-charcoal-800">
+                <label className="mb-1.5 block text-xs font-medium text-muted">Transferir para</label>
+                <select
+                  key={p.responsible?.id ?? "none"}
+                  defaultValue={p.responsible?.id ?? ""}
+                  onChange={(e) => updateMutation.mutate({ responsibleId: e.target.value || null })}
+                  className="focus-ring w-full rounded-xl border border-cream-200 bg-white px-3 py-2 text-sm dark:border-charcoal-700 dark:bg-charcoal-900"
+                >
+                  <option value="">Não atribuído</option>
+                  {usersData?.users
+                    .filter((u) => u.id !== p.responsible?.id)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} · {u.username}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+
             {p.createdBy && (
               <p className="mt-3 border-t border-cream-200 pt-3 text-xs text-muted dark:border-charcoal-800">
                 Criado por <span className="font-medium">{p.createdBy.name}</span>
@@ -323,6 +376,19 @@ export default function ProtocolDetailPage() {
           </Card>
         </div>
       </div>
+
+      {pendingConclude && (
+        <ConcludeProtocolDialog
+          isPending={updateMutation.isPending}
+          onCancel={() => setPendingConclude(false)}
+          onConfirm={(channel) => {
+            updateMutation.mutate(
+              { status: "CONCLUIDO", resolutionChannel: channel },
+              { onSuccess: () => setPendingConclude(false) }
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

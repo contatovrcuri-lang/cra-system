@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { updateProtocolSchema } from "@/lib/validators";
-import { STATUS_LABEL, PRIORITY_LABEL } from "@/lib/labels";
+import { STATUS_LABEL, PRIORITY_LABEL, RESOLUTION_CHANNEL_LABEL } from "@/lib/labels";
 
 async function loadProtocol(id: string) {
   return prisma.protocol.findUnique({
@@ -31,7 +31,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const protocol = await loadProtocol(id);
   if (!protocol) return NextResponse.json({ error: "Protocolo não encontrado." }, { status: 404 });
 
-  if (session.role !== "ADMIN" && protocol.responsibleId !== session.sub) {
+  const canAccess =
+    session.role === "ADMIN" || protocol.responsibleId === session.sub || protocol.responsibleId === null;
+  if (!canAccess) {
     return NextResponse.json({ error: "Você não tem acesso a este protocolo." }, { status: 403 });
   }
 
@@ -46,8 +48,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const existing = await prisma.protocol.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Protocolo não encontrado." }, { status: 404 });
 
-  const isOwner = existing.responsibleId === session.sub;
-  if (session.role !== "ADMIN" && !isOwner) {
+  const isOwnerOrUnassigned = existing.responsibleId === session.sub || existing.responsibleId === null;
+  if (session.role !== "ADMIN" && !isOwnerOrUnassigned) {
     return NextResponse.json({ error: "Você não tem acesso a este protocolo." }, { status: 403 });
   }
 
@@ -68,10 +70,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     delete data.dueDate;
   }
 
+  // Todo protocolo concluído precisa registrar por qual meio a resolutiva
+  // final foi dada ao cooperado.
+  if (data.status === "CONCLUIDO" && existing.status !== "CONCLUIDO") {
+    const channel = data.resolutionChannel ?? existing.resolutionChannel;
+    if (!channel) {
+      return NextResponse.json(
+        { error: "Informe o meio de contato usado para finalizar o protocolo." },
+        { status: 400 }
+      );
+    }
+    data.resolutionChannel = channel;
+  }
+
   const changes: { field: string; oldValue: string | null; newValue: string | null }[] = [];
 
   if (data.status && data.status !== existing.status) {
     changes.push({ field: "status", oldValue: STATUS_LABEL[existing.status], newValue: STATUS_LABEL[data.status] });
+  }
+  if (data.resolutionChannel && data.resolutionChannel !== existing.resolutionChannel) {
+    changes.push({
+      field: "meio de contato",
+      oldValue: null,
+      newValue: RESOLUTION_CHANNEL_LABEL[data.resolutionChannel],
+    });
   }
   if (data.priority && data.priority !== existing.priority) {
     changes.push({ field: "prioridade", oldValue: PRIORITY_LABEL[existing.priority], newValue: PRIORITY_LABEL[data.priority] });

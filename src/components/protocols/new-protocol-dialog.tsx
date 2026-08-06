@@ -11,6 +11,11 @@ import { PROTOCOL_TYPES } from "@/lib/fake-data";
 import { PRIORITY_LABEL, STATUS_LABEL } from "@/lib/labels";
 
 const formSchema = z.object({
+  number: z
+    .string()
+    .trim()
+    .min(3, "Informe o número do protocolo.")
+    .max(40, "Número muito longo."),
   description: z.string().min(5, "Descreva o protocolo com mais detalhes."),
   requester: z.string().min(2, "Informe o solicitante."),
   type: z.string().min(1, "Selecione um tipo."),
@@ -94,13 +99,26 @@ export function NewProtocolDialog({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="surface w-full max-w-lg animate-fade-up rounded-2xl p-6 shadow-lift max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold">Novo protocolo</h2>
+          <div>
+            <h2 className="font-display text-lg font-bold">Adicionar protocolo</h2>
+            <p className="text-xs text-muted">Protocolo já aberto em outro sistema — só cadastre aqui pra equipe dar andamento.</p>
+          </div>
           <button onClick={onClose} className="focus-ring rounded-lg p-1.5 text-muted hover:bg-cream-150 dark:hover:bg-charcoal-800">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted">Número do protocolo</label>
+            <input
+              {...register("number")}
+              className="focus-ring w-full rounded-xl border border-cream-200 bg-white px-3.5 py-2.5 text-sm font-mono dark:border-charcoal-700 dark:bg-charcoal-900"
+              placeholder="Ex: 0012345678"
+            />
+            {errors.number && <p className="mt-1 text-xs text-red-500">{errors.number.message}</p>}
+          </div>
+
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted">Descrição</label>
             <textarea

@@ -47,6 +47,12 @@ export const PRIORITY_COLOR: Record<string, string> = {
   CRITICA: "text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800",
 };
 
+export const RESOLUTION_CHANNEL_LABEL: Record<string, string> = {
+  CONTATO_ATIVO: "Contato ativo",
+  WHATSAPP: "WhatsApp",
+  EMAIL: "E-mail",
+};
+
 export const PRIORITY_DOT: Record<string, string> = {
   BAIXA: "bg-green-500",
   MEDIA: "bg-navy-500",

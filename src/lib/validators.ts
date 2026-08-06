@@ -17,7 +17,19 @@ export function sanitizeText(value: string) {
   return value.replace(/<[^>]*>?/gm, "").trim();
 }
 
+export const RESOLUTION_CHANNEL_ENUM = z.enum(["CONTATO_ATIVO", "WHATSAPP", "EMAIL"]);
+
+// Número de protocolo já existente em outro sistema — a monitoria só cadastra
+// aqui, não gera um número novo. Aceita dígitos, letras e hífen/barra.
+const protocolNumberSchema = z
+  .string()
+  .trim()
+  .min(3, "Informe o número do protocolo.")
+  .max(40, "Número de protocolo muito longo.")
+  .regex(/^[A-Za-z0-9/\-.]+$/, "Número de protocolo inválido.");
+
 export const createProtocolSchema = z.object({
+  number: protocolNumberSchema,
   description: z.string().trim().min(5).max(2000).transform(sanitizeText),
   requester: z.string().trim().min(2).max(120).transform(sanitizeText),
   type: z.string().trim().min(2).max(120),
@@ -37,6 +49,7 @@ export const updateProtocolSchema = z.object({
   responsibleId: z.string().cuid().nullable().optional(),
   dueDate: z.coerce.date().optional(),
   notes: z.string().trim().max(4000).transform(sanitizeText).optional().nullable(),
+  resolutionChannel: RESOLUTION_CHANNEL_ENUM.optional().nullable(),
 });
 
 export const createUserSchema = z.object({

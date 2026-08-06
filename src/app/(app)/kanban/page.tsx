@@ -6,12 +6,14 @@ import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent, Pointe
 import { toast } from "sonner";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import { KanbanCard, type KanbanProtocol } from "@/components/kanban/kanban-card";
+import { ConcludeProtocolDialog } from "@/components/protocols/conclude-protocol-dialog";
 import { Skeleton } from "@/components/ui/primitives";
 import { KANBAN_STATUS_ORDER } from "@/lib/labels";
 
 export default function KanbanPage() {
   const qc = useQueryClient();
   const [activeItem, setActiveItem] = useState<KanbanProtocol | null>(null);
+  const [pendingConclude, setPendingConclude] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<{ items: KanbanProtocol[] }>({
     queryKey: ["kanban-protocols"],
@@ -23,11 +25,11 @@ export default function KanbanPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, resolutionChannel }: { id: string; status: string; resolutionChannel?: string }) => {
       const res = await fetch(`/api/protocols/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...(resolutionChannel ? { resolutionChannel } : {}) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Erro ao mover protocolo");
@@ -77,9 +79,13 @@ export default function KanbanPage() {
     if (!over) return;
     const newStatus = String(over.id);
     const item = data?.items.find((p) => p.id === active.id);
-    if (item && item.status !== newStatus) {
-      updateMutation.mutate({ id: String(active.id), status: newStatus });
+    if (!item || item.status === newStatus) return;
+
+    if (newStatus === "CONCLUIDO") {
+      setPendingConclude(String(active.id));
+      return;
     }
+    updateMutation.mutate({ id: String(active.id), status: newStatus });
   }
 
   return (
@@ -104,6 +110,19 @@ export default function KanbanPage() {
           </div>
           <DragOverlay>{activeItem && <KanbanCard protocol={activeItem} />}</DragOverlay>
         </DndContext>
+      )}
+
+      {pendingConclude && (
+        <ConcludeProtocolDialog
+          isPending={updateMutation.isPending}
+          onCancel={() => setPendingConclude(null)}
+          onConfirm={(channel) => {
+            updateMutation.mutate(
+              { id: pendingConclude, status: "CONCLUIDO", resolutionChannel: channel },
+              { onSuccess: () => setPendingConclude(null) }
+            );
+          }}
+        />
       )}
     </div>
   );

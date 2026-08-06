@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createProtocolSchema } from "@/lib/validators";
-import { generateProtocolNumber } from "@/lib/fake-data";
 import type { Prisma, ProtocolStatus, Priority } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -20,29 +19,38 @@ export async function GET(req: NextRequest) {
   const page = Number(searchParams.get("page") ?? "1");
   const pageSize = Math.min(Number(searchParams.get("pageSize") ?? "20"), 100);
 
-  const where: Prisma.ProtocolWhereInput = {};
+  const and: Prisma.ProtocolWhereInput[] = [];
 
+  // Colaboradores enxergam os protocolos atribuídos a eles + os ainda não
+  // atribuídos a ninguém (qualquer operador pode assumir um não atribuído).
   if (session.role !== "ADMIN") {
-    where.responsibleId = session.sub;
+    and.push({ OR: [{ responsibleId: session.sub }, { responsibleId: null }] });
   }
 
   if (q) {
-    where.OR = [
-      { number: { contains: q, mode: "insensitive" } },
-      { requester: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-      { type: { contains: q, mode: "insensitive" } },
-    ];
+    and.push({
+      OR: [
+        { number: { contains: q, mode: "insensitive" } },
+        { requester: { contains: q, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+        { type: { contains: q, mode: "insensitive" } },
+      ],
+    });
   }
-  if (status) where.status = status as ProtocolStatus;
-  if (priority) where.priority = priority as Priority;
-  if (type) where.type = type;
-  if (responsibleId && session.role === "ADMIN") where.responsibleId = responsibleId;
+  if (status) and.push({ status: status as ProtocolStatus });
+  if (priority) and.push({ priority: priority as Priority });
+  if (type) and.push({ type });
+  if (responsibleId && session.role === "ADMIN") and.push({ responsibleId });
   if (dateFrom || dateTo) {
-    where.createdAt = {};
-    if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-    if (dateTo) where.createdAt.lte = new Date(dateTo);
+    and.push({
+      createdAt: {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo ? { lte: new Date(dateTo) } : {}),
+      },
+    });
   }
+
+  const where: Prisma.ProtocolWhereInput = and.length > 0 ? { AND: and } : {};
 
   const [items, totalCount] = await Promise.all([
     prisma.protocol.findMany({
@@ -79,16 +87,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos." }, { status: 400 });
   }
 
-  let number = generateProtocolNumber();
-  for (let i = 0; i < 5; i++) {
-    const exists = await prisma.protocol.findUnique({ where: { number } });
-    if (!exists) break;
-    number = generateProtocolNumber();
+  const alreadyExists = await prisma.protocol.findUnique({ where: { number: parsed.data.number } });
+  if (alreadyExists) {
+    return NextResponse.json({ error: "Já existe um protocolo cadastrado com esse número." }, { status: 409 });
   }
 
   const protocol = await prisma.protocol.create({
     data: {
-      number,
       ...parsed.data,
       createdById: session.sub,
     },
