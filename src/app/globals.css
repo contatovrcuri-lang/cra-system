@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 248 248 245;         /* cream-100 off-white */
+  --surface: 255 255 255;
+  --surface-2: 242 242 237;  /* cream-150 */
+  --border: 233 233 226;     /* cream-200 */
+  --text: 11 23 41;          /* navy-950-ish for text */
+  --text-muted: 90 104 122;
+  --brand: 11 37 69;         /* navy-900 */
+  --brand-2: 31 157 107;     /* green-500 */
+  --brand-3: 240 135 47;     /* orange-400 */
+}
+
+.dark {
+  --bg: 20 23 28;            /* charcoal-950 */
+  --surface: 25 29 36;       /* charcoal-900 */
+  --surface-2: 30 35 43;     /* charcoal-850 */
+  --border: 46 53 64;        /* charcoal-700 */
+  --text: 237 239 242;
+  --text-muted: 148 158 171;
+  --brand: 111 158 214;      /* lighter navy for dark bg contrast */
+  --brand-2: 87 195 140;     /* green-300 */
+  --brand-3: 247 192 138;    /* orange-200 */
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: rgba(31, 157, 107, 0.25);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 8px;
+  border: 2px solid rgb(var(--bg));
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-muted)); }
+
+@layer components {
+  .surface {
+    background-color: rgb(var(--surface));
+    border: 1px solid rgb(var(--border));
+  }
+  .surface-2 {
+    background-color: rgb(var(--surface-2));
+  }
+  .text-muted {
+    color: rgb(var(--text-muted));
+  }
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(var(--surface-2));
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.12),
+      transparent
+    );
+    background-size: 700px 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  .focus-ring {
+    outline: none;
+  }
+  .focus-ring:focus-visible {
+    outline: 2px solid rgb(var(--brand-2));
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
