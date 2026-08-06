@@ -14,6 +14,8 @@ import {
   Clock3,
   History as HistoryIcon,
   MessageSquare,
+  RotateCcw,
+  Eye,
 } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
 import { Avatar, Card, Skeleton } from "@/components/ui/primitives";
@@ -21,6 +23,7 @@ import { formatDate, formatDateTime, formatProtocolNumber } from "@/lib/utils";
 import { STATUS_LABEL, PRIORITY_LABEL, RESOLUTION_CHANNEL_LABEL } from "@/lib/labels";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { ConcludeProtocolDialog } from "@/components/protocols/conclude-protocol-dialog";
+import { ReopenProtocolDialog } from "@/components/protocols/reopen-protocol-dialog";
 
 type UserOption = { id: string; name: string; username: string };
 
@@ -34,11 +37,13 @@ type ProtocolDetail = {
   status: string;
   notes: string | null;
   resolutionChannel: string | null;
+  resolutionNote: string | null;
   dueDate: string;
   createdAt: string;
   completedAt: string | null;
   responsible: { id: string; name: string; avatarColor: string; username: string } | null;
   createdBy: { name: string } | null;
+  views: { id: string; viewedAt: string; user: { id: string; name: string; avatarColor: string } }[];
   history: {
     id: string;
     field: string;
@@ -62,6 +67,7 @@ export default function ProtocolDetailPage() {
   const { user } = useCurrentUser();
   const [comment, setComment] = useState("");
   const [pendingConclude, setPendingConclude] = useState(false);
+  const [pendingReopen, setPendingReopen] = useState(false);
 
   const isAdminForOptions = user?.role === "ADMIN";
   const { data: usersData } = useQuery<{ users: UserOption[] }>({
@@ -211,8 +217,8 @@ export default function ProtocolDetailPage() {
 
             {p.resolutionChannel && (
               <div className="mt-4 rounded-xl bg-green-50 p-3 text-sm dark:bg-green-950/20">
-                <p className="mb-1 text-xs font-medium text-muted">Finalizado por</p>
-                {RESOLUTION_CHANNEL_LABEL[p.resolutionChannel]}
+                <p className="mb-1 text-xs font-medium text-muted">Finalizado por {RESOLUTION_CHANNEL_LABEL[p.resolutionChannel]}</p>
+                {p.resolutionNote && <p className="text-sm">{p.resolutionNote}</p>}
               </div>
             )}
           </Card>
@@ -220,6 +226,19 @@ export default function ProtocolDetailPage() {
           {/* Controles de andamento */}
           <Card className="p-5">
             <p className="mb-3 font-display text-sm font-semibold">Atualizar andamento</p>
+            {p.status === "CONCLUIDO" ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-cream-150 p-3 dark:bg-charcoal-800">
+                <p className="text-sm">Este protocolo está concluído.</p>
+                {isAdmin && (
+                  <button
+                    onClick={() => setPendingReopen(true)}
+                    className="focus-ring flex items-center gap-1.5 rounded-lg border border-orange-300 px-3 py-1.5 text-xs font-medium text-orange-600 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:hover:bg-orange-950/30"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" /> Reabrir
+                  </button>
+                )}
+              </div>
+            ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted">Status</label>
@@ -228,7 +247,7 @@ export default function ProtocolDetailPage() {
                   defaultValue={pendingConclude ? p.status : p.status}
                   onChange={(e) => {
                     const newStatus = e.target.value;
-                    if (newStatus === "CONCLUIDO" && p.status !== "CONCLUIDO") {
+                    if (newStatus === "CONCLUIDO") {
                       setPendingConclude(true);
                       return;
                     }
@@ -260,6 +279,7 @@ export default function ProtocolDetailPage() {
                 </div>
               )}
             </div>
+            )}
           </Card>
 
           {/* Comentários */}
@@ -349,6 +369,25 @@ export default function ProtocolDetailPage() {
             )}
           </Card>
 
+          {p.views.length > 0 && (
+            <Card className="p-5">
+              <p className="mb-3 flex items-center gap-1.5 font-display text-sm font-semibold">
+                <Eye className="h-4 w-4" /> Visto por
+              </p>
+              <div className="space-y-2.5">
+                {p.views.map((v) => (
+                  <div key={v.id} className="flex items-center gap-2.5">
+                    <Avatar name={v.user.name} color={v.user.avatarColor} size={26} />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium">{v.user.name}</p>
+                      <p className="text-[10px] text-muted">{formatDateTime(v.viewedAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           <Card className="p-5">
             <p className="mb-3 flex items-center gap-1.5 font-display text-sm font-semibold">
               <HistoryIcon className="h-4 w-4" /> Histórico
@@ -381,10 +420,23 @@ export default function ProtocolDetailPage() {
         <ConcludeProtocolDialog
           isPending={updateMutation.isPending}
           onCancel={() => setPendingConclude(false)}
-          onConfirm={(channel) => {
+          onConfirm={(channel, note) => {
             updateMutation.mutate(
-              { status: "CONCLUIDO", resolutionChannel: channel },
+              { status: "CONCLUIDO", resolutionChannel: channel, resolutionNote: note },
               { onSuccess: () => setPendingConclude(false) }
+            );
+          }}
+        />
+      )}
+
+      {pendingReopen && (
+        <ReopenProtocolDialog
+          isPending={updateMutation.isPending}
+          onCancel={() => setPendingReopen(false)}
+          onConfirm={(reason) => {
+            updateMutation.mutate(
+              { status: "EM_ATENDIMENTO", reopenReason: reason },
+              { onSuccess: () => setPendingReopen(false) }
             );
           }}
         />

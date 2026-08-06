@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
-import { Menu, Sun, Moon, Bell, LogOut, Presentation } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Menu, Sun, Moon, Bell, LogOut, Presentation, Search } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationsPanel } from "./notifications-panel";
 import { usePresentationMode } from "@/hooks/use-presentation-mode";
@@ -16,9 +16,17 @@ export function Topbar({ user, onOpenMobile }: { user: ShellUser; onOpenMobile: 
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
   const { enabled: presentationMode, setEnabled: setPresentationMode } = usePresentationMode();
 
   useEffect(() => setMounted(true), []);
+
+  function handleGlobalSearch(e: FormEvent) {
+    e.preventDefault();
+    if (!globalSearch.trim()) return;
+    router.push(`/protocols?q=${encodeURIComponent(globalSearch.trim())}`);
+    setGlobalSearch("");
+  }
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -45,6 +53,16 @@ export function Topbar({ user, onOpenMobile }: { user: ShellUser; onOpenMobile: 
           </p>
         </div>
       </div>
+
+      <form onSubmit={handleGlobalSearch} className="relative hidden w-64 md:block">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <input
+          value={globalSearch}
+          onChange={(e) => setGlobalSearch(e.target.value)}
+          placeholder="Buscar protocolo (nº, solicitante...)"
+          className="focus-ring w-full rounded-xl border border-cream-200 bg-cream-150/60 py-2 pl-9 pr-3 text-xs dark:border-charcoal-700 dark:bg-charcoal-900"
+        />
+      </form>
 
       <div className="flex items-center gap-1.5">
         <button

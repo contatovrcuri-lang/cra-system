@@ -50,6 +50,9 @@ export const updateProtocolSchema = z.object({
   dueDate: z.coerce.date().optional(),
   notes: z.string().trim().max(4000).transform(sanitizeText).optional().nullable(),
   resolutionChannel: RESOLUTION_CHANNEL_ENUM.optional().nullable(),
+  resolutionNote: z.string().trim().min(1).max(2000).transform(sanitizeText).optional().nullable(),
+  // Motivo exigido quando um protocolo já concluído é reaberto (só admin).
+  reopenReason: z.string().trim().min(3).max(500).transform(sanitizeText).optional(),
 });
 
 export const createUserSchema = z.object({

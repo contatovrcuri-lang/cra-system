@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Plus, FileText, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
@@ -26,14 +27,49 @@ type Protocol = {
 };
 
 export default function ProtocolsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProtocolsPageContent />
+    </Suspense>
+  );
+}
+
+function ProtocolsPageContent() {
+  const searchParams = useSearchParams();
   const { user } = useCurrentUser();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [type, setType] = useState("");
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [showNew, setShowNew] = useState(false);
+
+  // Sincroniza com buscas vindas da barra de busca global (topbar), inclusive
+  // se o usuário já estiver nessa página e buscar de novo.
+  useEffect(() => {
+    const urlQ = searchParams.get("q");
+    if (urlQ !== null && urlQ !== q) {
+      setQ(urlQ);
+      setPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Atalho de teclado: "N" abre o formulário de novo protocolo (monitoria).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+      if (isTyping || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.toLowerCase() === "n" && user?.role === "ADMIN") {
+        e.preventDefault();
+        setShowNew(true);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [user]);
 
   const params = new URLSearchParams();
   if (q) params.set("q", q);
@@ -68,9 +104,11 @@ export default function ProtocolsPage() {
         {user?.role === "ADMIN" && (
           <button
             onClick={() => setShowNew(true)}
+            title="Atalho: tecla N"
             className="focus-ring flex items-center justify-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy-800 dark:bg-navy-600 dark:hover:bg-navy-500"
           >
             <Plus className="h-4 w-4" /> Novo protocolo
+            <kbd className="hidden rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-normal sm:inline">N</kbd>
           </button>
         )}
       </div>

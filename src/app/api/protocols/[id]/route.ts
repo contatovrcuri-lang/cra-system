@@ -19,7 +19,19 @@ async function loadProtocol(id: string) {
         include: { user: { select: { name: true, avatarColor: true } } },
       },
       attachments: { orderBy: { createdAt: "desc" } },
+      views: {
+        orderBy: { viewedAt: "desc" },
+        include: { user: { select: { id: true, name: true, avatarColor: true } } },
+      },
     },
+  });
+}
+
+async function registerView(protocolId: string, userId: string) {
+  await prisma.protocolView.upsert({
+    where: { protocolId_userId: { protocolId, userId } },
+    update: { viewedAt: new Date() },
+    create: { protocolId, userId },
   });
 }
 
@@ -36,6 +48,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!canAccess) {
     return NextResponse.json({ error: "Você não tem acesso a este protocolo." }, { status: 403 });
   }
+
+  await registerView(id, session.sub);
 
   return NextResponse.json({ protocol });
 }
@@ -71,17 +85,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // Todo protocolo concluído precisa registrar por qual meio a resolutiva
-  // final foi dada ao cooperado.
+  // final foi dada ao cooperado, e uma observação do que foi feito.
   if (data.status === "CONCLUIDO" && existing.status !== "CONCLUIDO") {
     const channel = data.resolutionChannel ?? existing.resolutionChannel;
-    if (!channel) {
+    const note = data.resolutionNote ?? existing.resolutionNote;
+    if (!channel || !note) {
       return NextResponse.json(
-        { error: "Informe o meio de contato usado para finalizar o protocolo." },
+        { error: "Informe o meio de contato e a observação de encerramento." },
         { status: 400 }
       );
     }
     data.resolutionChannel = channel;
+    data.resolutionNote = note;
   }
+
+  // Reabrir um protocolo já concluído é uma ação sensível: só a monitoria
+  // pode fazer isso, e sempre com uma justificativa registrada no histórico.
+  const isReopening = existing.status === "CONCLUIDO" && data.status && data.status !== "CONCLUIDO";
+  if (isReopening) {
+    if (session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Apenas a monitoria pode reabrir um protocolo concluído." }, { status: 403 });
+    }
+    if (!data.reopenReason) {
+      return NextResponse.json({ error: "Informe o motivo da reabertura." }, { status: 400 });
+    }
+    // Limpa os dados de encerramento — se for concluído de novo, precisa
+    // registrar canal e observação atualizados.
+    data.resolutionChannel = null;
+    data.resolutionNote = null;
+  }
+  const reopenReason = data.reopenReason;
+  delete data.reopenReason;
 
   const changes: { field: string; oldValue: string | null; newValue: string | null }[] = [];
 
@@ -94,6 +128,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       oldValue: null,
       newValue: RESOLUTION_CHANNEL_LABEL[data.resolutionChannel],
     });
+  }
+  if (data.resolutionNote && data.resolutionNote !== existing.resolutionNote) {
+    changes.push({ field: "observação de encerramento", oldValue: null, newValue: data.resolutionNote });
+  }
+  if (isReopening && reopenReason) {
+    changes.push({ field: "reabertura", oldValue: null, newValue: reopenReason });
   }
   if (data.priority && data.priority !== existing.priority) {
     changes.push({ field: "prioridade", oldValue: PRIORITY_LABEL[existing.priority], newValue: PRIORITY_LABEL[data.priority] });

@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { toast } from "sonner";
+import { Rows3, LayoutGrid } from "lucide-react";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import { KanbanCard, type KanbanProtocol } from "@/components/kanban/kanban-card";
 import { ConcludeProtocolDialog } from "@/components/protocols/conclude-protocol-dialog";
@@ -14,6 +15,19 @@ export default function KanbanPage() {
   const qc = useQueryClient();
   const [activeItem, setActiveItem] = useState<KanbanProtocol | null>(null);
   const [pendingConclude, setPendingConclude] = useState<string | null>(null);
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("cra-kanban-compact");
+    if (saved === "1") setCompact(true);
+  }, []);
+
+  function toggleCompact() {
+    setCompact((v) => {
+      localStorage.setItem("cra-kanban-compact", !v ? "1" : "0");
+      return !v;
+    });
+  }
 
   const { data, isLoading } = useQuery<{ items: KanbanProtocol[] }>({
     queryKey: ["kanban-protocols"],
@@ -25,11 +39,25 @@ export default function KanbanPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, status, resolutionChannel }: { id: string; status: string; resolutionChannel?: string }) => {
+    mutationFn: async ({
+      id,
+      status,
+      resolutionChannel,
+      resolutionNote,
+    }: {
+      id: string;
+      status: string;
+      resolutionChannel?: string;
+      resolutionNote?: string;
+    }) => {
       const res = await fetch(`/api/protocols/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, ...(resolutionChannel ? { resolutionChannel } : {}) }),
+        body: JSON.stringify({
+          status,
+          ...(resolutionChannel ? { resolutionChannel } : {}),
+          ...(resolutionNote ? { resolutionNote } : {}),
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Erro ao mover protocolo");
@@ -90,9 +118,18 @@ export default function KanbanPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">Kanban</h1>
-        <p className="text-sm text-muted">Arraste os protocolos entre as colunas para atualizar o status.</p>
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Kanban</h1>
+          <p className="text-sm text-muted">Arraste os protocolos entre as colunas para atualizar o status.</p>
+        </div>
+        <button
+          onClick={toggleCompact}
+          className="focus-ring flex items-center gap-2 self-start rounded-xl border border-cream-200 px-3.5 py-2 text-sm font-medium hover:bg-cream-150 dark:border-charcoal-700 dark:hover:bg-charcoal-800"
+        >
+          {compact ? <LayoutGrid className="h-4 w-4" /> : <Rows3 className="h-4 w-4" />}
+          {compact ? "Modo normal" : "Modo compacto"}
+        </button>
       </div>
 
       {isLoading ? (
@@ -103,12 +140,12 @@ export default function KanbanPage() {
         </div>
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          <div className="flex gap-3 overflow-x-auto pb-4">
             {KANBAN_STATUS_ORDER.map((status) => (
-              <KanbanColumn key={status} status={status} items={columns[status] ?? []} />
+              <KanbanColumn key={status} status={status} items={columns[status] ?? []} compact={compact} />
             ))}
           </div>
-          <DragOverlay>{activeItem && <KanbanCard protocol={activeItem} />}</DragOverlay>
+          <DragOverlay>{activeItem && <KanbanCard protocol={activeItem} compact={compact} />}</DragOverlay>
         </DndContext>
       )}
 
@@ -116,9 +153,9 @@ export default function KanbanPage() {
         <ConcludeProtocolDialog
           isPending={updateMutation.isPending}
           onCancel={() => setPendingConclude(null)}
-          onConfirm={(channel) => {
+          onConfirm={(channel, note) => {
             updateMutation.mutate(
-              { id: pendingConclude, status: "CONCLUIDO", resolutionChannel: channel },
+              { id: pendingConclude, status: "CONCLUIDO", resolutionChannel: channel, resolutionNote: note },
               { onSuccess: () => setPendingConclude(null) }
             );
           }}

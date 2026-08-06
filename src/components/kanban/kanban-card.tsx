@@ -20,7 +20,7 @@ export type KanbanProtocol = {
   responsible: { name: string; avatarColor: string } | null;
 };
 
-export function KanbanCard({ protocol }: { protocol: KanbanProtocol }) {
+export function KanbanCard({ protocol, compact }: { protocol: KanbanProtocol; compact?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: protocol.id,
   });
@@ -31,6 +31,31 @@ export function KanbanCard({ protocol }: { protocol: KanbanProtocol }) {
   };
 
   const overdue = daysUntil(protocol.dueDate) < 0 && !["CONCLUIDO", "CANCELADO"].includes(protocol.status);
+
+  if (compact) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="surface group flex items-center gap-2 rounded-lg px-2.5 py-2 shadow-soft transition hover:shadow-card"
+      >
+        <button {...attributes} {...listeners} className="cursor-grab touch-none text-muted active:cursor-grabbing">
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <Link
+          href={`/protocols/${protocol.id}`}
+          className="focus-ring min-w-0 flex-1 truncate font-mono text-[11px] font-medium text-navy-700 hover:underline dark:text-navy-300"
+          title={formatProtocolNumber(protocol.number)}
+        >
+          {formatProtocolNumber(protocol.number)}
+        </Link>
+        {protocol.responsible && (
+          <Avatar name={protocol.responsible.name} color={protocol.responsible.avatarColor} size={18} />
+        )}
+        {overdue && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" title="Atrasado" />}
+      </div>
+    );
+  }
 
   return (
     <div

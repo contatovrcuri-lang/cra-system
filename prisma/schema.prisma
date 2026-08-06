@@ -69,6 +69,7 @@ model User {
   comments         Comment[]
   notifications    Notification[]
   attachments      Attachment[]
+  protocolViews    ProtocolView[]
 
   @@map("users")
 }
@@ -83,6 +84,7 @@ model Protocol {
   status        ProtocolStatus @default(NOVO)
   notes         String?
   resolutionChannel ResolutionChannel? // meio de contato usado para dar a resolutiva final ao cooperado
+  resolutionNote    String? // observação obrigatória registrada no encerramento
 
   responsibleId String?
   responsible   User?    @relation("Responsavel", fields: [responsibleId], references: [id])
@@ -99,11 +101,26 @@ model Protocol {
   comments      Comment[]
   attachments   Attachment[]
   notifications Notification[]
+  views         ProtocolView[]
 
   @@index([status])
   @@index([priority])
   @@index([responsibleId])
   @@map("protocols")
+}
+
+// Registra a última vez que cada usuário abriu/visualizou o protocolo
+// (auditoria de "quem já viu isso", não um log de todo acesso).
+model ProtocolView {
+  id         String   @id @default(cuid())
+  protocolId String
+  protocol   Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  viewedAt   DateTime @default(now())
+
+  @@unique([protocolId, userId])
+  @@map("protocol_views")
 }
 
 model HistoryLog {
