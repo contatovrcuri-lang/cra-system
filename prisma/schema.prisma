@@ -1,0 +1,159 @@
+// ============================================================================
+// CRA System — Prisma Schema
+// Sistema de gerenciamento interno de protocolos de atendimento, retornos
+// e monitoria. TODOS os dados (usuários, protocolos, históricos) gerados
+// pelo seed são 100% fictícios. Nenhuma referência a pessoas, empresas ou
+// documentos reais deve ser inserida neste banco em nenhum ambiente.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  COLABORADOR
+}
+
+enum ProtocolStatus {
+  NOVO
+  EM_ANALISE
+  EM_ATENDIMENTO
+  AGUARDANDO_CLIENTE
+  AGUARDANDO_TERCEIROS
+  CONCLUIDO
+  CANCELADO
+}
+
+enum Priority {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum NotificationType {
+  NOVO_PROTOCOLO
+  MUDANCA_RESPONSAVEL
+  MUDANCA_STATUS
+  PRAZO_PROXIMO
+  PROTOCOLO_ATRASADO
+}
+
+model User {
+  id             String   @id @default(cuid())
+  username       String   @unique // padrão fictício X00XXXX
+  name           String
+  passwordHash   String
+  role           Role     @default(COLABORADOR)
+  avatarColor    String   @default("#12345F")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  protocolsOwned   Protocol[]      @relation("Responsavel")
+  protocolsCreated Protocol[]      @relation("CriadoPor")
+  historyEntries   HistoryLog[]
+  comments         Comment[]
+  notifications    Notification[]
+  attachments      Attachment[]
+
+  @@map("users")
+}
+
+model Protocol {
+  id            String         @id @default(cuid())
+  number        String         @unique // 00 + 10 dígitos aleatórios
+  description   String
+  requester     String         // solicitante fictício
+  type          String
+  priority      Priority       @default(MEDIA)
+  status        ProtocolStatus @default(NOVO)
+  notes         String?
+
+  responsibleId String?
+  responsible   User?    @relation("Responsavel", fields: [responsibleId], references: [id])
+
+  createdById   String?
+  createdBy     User?    @relation("CriadoPor", fields: [createdById], references: [id])
+
+  dueDate       DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  completedAt   DateTime?
+
+  history       HistoryLog[]
+  comments      Comment[]
+  attachments   Attachment[]
+  notifications Notification[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([responsibleId])
+  @@map("protocols")
+}
+
+model HistoryLog {
+  id          String   @id @default(cuid())
+  protocolId  String
+  protocol    Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  field       String
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
+
+  @@index([protocolId])
+  @@map("history_logs")
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  protocolId String
+  protocol   Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([protocolId])
+  @@map("comments")
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  protocolId String
+  protocol   Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  fileName   String
+  fileUrl    String
+  fileSize   Int      @default(0)
+  mimeType   String   @default("application/octet-stream")
+  createdAt  DateTime @default(now())
+
+  @@index([protocolId])
+  @@map("attachments")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id])
+  protocolId String?
+  protocol   Protocol?        @relation(fields: [protocolId], references: [id])
+  type       NotificationType
+  message    String
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+
+  @@index([userId])
+  @@map("notifications")
+}
