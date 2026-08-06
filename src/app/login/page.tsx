@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ShieldCheck, ArrowRight, Loader2, LayoutGrid, Activity, Users2 } from "lucide-react";
@@ -8,6 +8,14 @@ import { toast } from "sonner";
 import { usePresentationMode } from "@/hooks/use-presentation-mode";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const { enabled: presentationMode } = usePresentationMode();
